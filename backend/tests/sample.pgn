@@ -1,0 +1,10 @@
+[Event "Sample Game"]
+[Site "Chess Game Analyzer"]
+[Date "2024.03.20"]
+[Round "1"]
+[White "Player 1"]
+[Black "Player 2"]
+[Result "1-0"]
+[FEN "r2rkQ2/1p3pBp/2n1b3/p4p2/8/3R4/PPP1PPPP/2K2B1R b - - 4 19"]
+
+1. d4 d5 2. Nf3 Nc6 3. Bf4 Nf6 4. e3 Bf5 5. c4 e6 6. Nc3 Be7 7. c5 O-O 8. Bd3 Bxd3 9. Qxd3 Ne4 10. Nxe4 dxe4 11. Qxe4 f5 12. Qd3 Be6 13. O-O-O a5 14. h4 Qd7 15. g4 fxg4 16. Ng5 Bd5 17. Bxh7+ Kf8 18. Bg7 Be6 19. Qf8+ 1-0 
