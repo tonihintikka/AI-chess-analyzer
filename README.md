@@ -10,6 +10,8 @@ An AI-powered chess game analysis tool that provides detailed move-by-move analy
 - **AI Coaching**: Interactive chess coach powered by GPT-4
 - **Voice Interaction**: Voice-based coaching with speech-to-text and text-to-speech capabilities
 - **Real-time Evaluation**: Position evaluation with standard chess notation (e.g., +=, -/+)
+- **Error Handling**: Graceful fallback for voice transcription and response formatting
+- **Markdown Formatting**: Well-structured responses with sections, lists, and emphasis
 
 ## Tech Stack
 
@@ -20,11 +22,14 @@ An AI-powered chess game analysis tool that provides detailed move-by-move analy
 - TypeScript
 - Axios for API calls
 - react-chessboard for chess visualization
+- Web Audio API for voice recording
 
 ### Backend
 - FastAPI
 - Python 3.10+
 - OpenAI GPT-4 API
+- OpenAI Whisper API for speech-to-text
+- OpenAI TTS API for text-to-speech
 - python-chess for game processing
 - Pydantic for data validation
 
@@ -102,6 +107,12 @@ The application will be available at `http://localhost:3000`
    - Type questions or use voice input for coaching
    - Receive personalized advice and analysis
 
+4. **Voice Coaching**:
+   - Click the microphone icon to start recording
+   - Ask your question or describe the position
+   - Receive both audio and text responses
+   - Voice responses are clear and well-structured
+
 ## API Documentation
 
 ### Backend Endpoints
@@ -130,12 +141,12 @@ Content-Type: application/json
 
 #### Voice Coaching
 ```http
-POST /api/voice-coach
+POST /api/analyze-with-voice
 Content-Type: multipart/form-data
 
-audio_file: binary
-game_context: string (optional)
-conversation_history: string (optional)
+pgn: string (required)
+audio_file: file (optional)
+conversation_history: string (optional JSON)
 ```
 
 ## Component Structure
@@ -144,15 +155,26 @@ conversation_history: string (optional)
 - `ChessBoard`: Interactive chess board component
 - `GameAnalysis`: Move list and analysis display
 - `PGNInput`: Game input component
-- `ChessCoaching`: Interactive coaching interface
+- `ChessCoaching`: Interactive coaching interface with voice support
 - `ThemeRegistry`: Material-UI theme configuration
 
 ### Backend
 - `main.py`: Application entry point and FastAPI setup
 - `endpoints.py`: API route handlers
 - `chess_service.py`: Chess game processing logic
-- `openai_service.py`: GPT-4 integration and analysis
+- `openai_service.py`: GPT-4, Whisper, and TTS integration
 - `chess_models.py`: Pydantic data models
+
+## Error Handling
+
+The application includes robust error handling for:
+- Invalid PGN formats
+- Audio recording issues
+- Speech recognition errors
+- Response formatting problems
+- API connection issues
+
+Each error case includes graceful fallbacks and user-friendly error messages.
 
 ## Contributing
 
@@ -168,7 +190,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- OpenAI for GPT-4 API
+- OpenAI for GPT-4, Whisper, and TTS APIs
 - python-chess library
 - react-chessboard component
 - Material-UI team
