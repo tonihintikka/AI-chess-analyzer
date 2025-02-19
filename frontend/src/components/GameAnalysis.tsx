@@ -48,9 +48,15 @@ export default function GameAnalysis({
   summary,
   keyMoments,
 }: GameAnalysisProps) {
-  const [selectedMove, setSelectedMove] = useState<number | null>(null);
+  const [selectedMove, setSelectedMove] = useState<number>(0);
   const listRef = useRef<HTMLDivElement>(null);
   const moveRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  // Calculate total number of half-moves (each player's move is a half-move)
+  const totalMoves = moves.length * 2;
+
+  // Calculate the last valid move number
+  const lastMoveNumber = totalMoves - 1;
 
   // Update refs array when moves change
   useEffect(() => {
@@ -59,8 +65,9 @@ export default function GameAnalysis({
 
   // Scroll to current move when it changes
   useEffect(() => {
-    if (moveRefs.current[currentMove]) {
-      moveRefs.current[currentMove]?.scrollIntoView({
+    const moveIndex = Math.floor((currentMove - 1) / 2);
+    if (moveRefs.current[moveIndex]) {
+      moveRefs.current[moveIndex]?.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       });
@@ -68,8 +75,9 @@ export default function GameAnalysis({
   }, [currentMove]);
 
   const handleMoveClick = (moveNumber: number) => {
-    setSelectedMove(moveNumber);
-    onMoveSelect(moveNumber);
+    const validMoveNumber = Math.min(moveNumber, lastMoveNumber);
+    setSelectedMove(validMoveNumber);
+    onMoveSelect(validMoveNumber);
   };
 
   const handleNavigation = (direction: 'first' | 'prev' | 'next' | 'last') => {
@@ -82,10 +90,10 @@ export default function GameAnalysis({
         if (currentMove > 0) newMove = currentMove - 1;
         break;
       case 'next':
-        if (currentMove < moves.length - 1) newMove = currentMove + 1;
+        if (currentMove < lastMoveNumber) newMove = currentMove + 1;
         break;
       case 'last':
-        newMove = moves.length - 1;
+        newMove = lastMoveNumber;
         break;
     }
     setSelectedMove(newMove);
@@ -95,7 +103,7 @@ export default function GameAnalysis({
   // Find analysis for current move
   const getCurrentMoveAnalysis = () => {
     if (!keyMoments) return null;
-    const currentMoveNumber = Math.floor(currentMove / 2) + 1;
+    const currentMoveNumber = Math.floor((currentMove + 1) / 2);
     return keyMoments.find(km => km.move_number === currentMoveNumber);
   };
 
@@ -132,13 +140,13 @@ export default function GameAnalysis({
           </IconButton>
           <IconButton
             onClick={() => handleNavigation('next')}
-            disabled={currentMove === moves.length - 1}
+            disabled={currentMove >= lastMoveNumber}
           >
             <NavigateNext />
           </IconButton>
           <IconButton
             onClick={() => handleNavigation('last')}
-            disabled={currentMove === moves.length - 1}
+            disabled={currentMove >= lastMoveNumber}
           >
             <SkipNext />
           </IconButton>
@@ -152,7 +160,7 @@ export default function GameAnalysis({
           <List dense>
             {moves.map((move, index) => {
               const keyMoment = keyMoments?.find(
-                km => km.move_number === Math.floor(index / 2) + 1
+                km => km.move_number === index + 1
               );
               return (
                 <ListItem
@@ -160,7 +168,7 @@ export default function GameAnalysis({
                   ref={(element: HTMLLIElement | null) => {
                     moveRefs.current[index] = element;
                   }}
-                  onClick={() => handleMoveClick(index)}
+                  onClick={() => handleMoveClick(index * 2 + 1)}
                   sx={{
                     cursor: 'pointer',
                     transition: 'background-color 0.3s',
@@ -168,13 +176,13 @@ export default function GameAnalysis({
                       backgroundColor: 'action.hover',
                     },
                     backgroundColor:
-                      index === currentMove
+                      Math.floor((currentMove - 1) / 2) === index
                         ? 'primary.light'
-                        : index === selectedMove
+                        : Math.floor((selectedMove - 1) / 2) === index
                         ? 'action.selected'
                         : keyMoment ? 'rgba(25, 118, 210, 0.08)'
                         : 'inherit',
-                    color: index === currentMove ? 'white' : 'inherit',
+                    color: Math.floor((currentMove - 1) / 2) === index ? 'white' : 'inherit',
                   }}
                 >
                   <ListItemText
@@ -182,11 +190,11 @@ export default function GameAnalysis({
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography 
                           variant="body2" 
-                          color={index === currentMove ? 'inherit' : 'textSecondary'}
+                          color={Math.floor((currentMove - 1) / 2) === index ? 'inherit' : 'textSecondary'}
                         >
                           {move.number}.
                         </Typography>
-                        <Typography color={index === currentMove ? 'inherit' : 'text.primary'}>
+                        <Typography color={Math.floor((currentMove - 1) / 2) === index ? 'inherit' : 'text.primary'}>
                           {move.full_move}
                         </Typography>
                         {keyMoment?.evaluation && (
@@ -201,8 +209,8 @@ export default function GameAnalysis({
                                 : 'default'
                             }
                             sx={{
-                              color: index === currentMove ? 'white' : 'inherit',
-                              borderColor: index === currentMove ? 'white' : 'inherit',
+                              color: Math.floor((currentMove - 1) / 2) === index ? 'white' : 'inherit',
+                              borderColor: Math.floor((currentMove - 1) / 2) === index ? 'white' : 'inherit',
                             }}
                           />
                         )}
@@ -212,9 +220,9 @@ export default function GameAnalysis({
                       keyMoment && (
                         <Typography 
                           variant="body2" 
-                          color={index === currentMove ? 'inherit' : 'text.secondary'}
+                          color={Math.floor((currentMove - 1) / 2) === index ? 'inherit' : 'text.secondary'}
                           sx={{ 
-                            opacity: index === currentMove ? 0.9 : 0.7,
+                            opacity: Math.floor((currentMove - 1) / 2) === index ? 0.9 : 0.7,
                             mt: 1,
                             fontStyle: 'italic'
                           }}

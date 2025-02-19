@@ -24,6 +24,8 @@ interface GameAnalysisData {
     white: string;
     black: string;
     position_fen: string;
+    position_after_white: string | null;
+    position_after_black: string | null;
     full_move: string;
     analysis?: string;
     evaluation?: string;
@@ -44,6 +46,31 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showCoaching, setShowCoaching] = useState(false);
 
+  const getCurrentPosition = () => {
+    if (!gameAnalysis) {
+      return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    }
+
+    // For the initial position
+    if (currentMove === 0) {
+      return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    }
+
+    const lastValidMove = gameAnalysis.moves.length * 2 - 1;
+    const validCurrentMove = Math.min(currentMove, lastValidMove);
+    
+    const moveIndex = Math.floor((validCurrentMove - 1) / 2);
+    const isWhiteMove = (validCurrentMove - 1) % 2 === 0;
+
+    const move = gameAnalysis.moves[moveIndex];
+    if (!move) return gameAnalysis.moves[gameAnalysis.moves.length - 1].position_fen;
+
+    if (isWhiteMove) {
+      return move.position_after_white || move.position_fen;
+    }
+    return move.position_fen;
+  };
+
   const handlePGNSubmit = async (pgn: string) => {
     setIsLoading(true);
     setError(null);
@@ -63,7 +90,9 @@ export default function Home() {
   };
 
   const handleMoveSelect = (moveNumber: number) => {
-    setCurrentMove(moveNumber);
+    // Ensure we don't exceed the valid move range
+    const lastValidMove = gameAnalysis ? gameAnalysis.moves.length * 2 - 1 : 0;
+    setCurrentMove(Math.min(moveNumber, lastValidMove));
   };
 
   return (
@@ -90,10 +119,7 @@ export default function Home() {
               <CircularProgress />
             ) : (
               <ChessBoard
-                fen={
-                  gameAnalysis?.moves[currentMove]?.position_fen ||
-                  'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-                }
+                fen={getCurrentPosition()}
                 disabled
               />
             )}
