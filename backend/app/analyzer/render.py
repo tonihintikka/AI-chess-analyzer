@@ -11,7 +11,7 @@ import chess.svg
 
 from .coach import CLASS_FI, PHASE_FI, PHASES
 
-CLASS_COLOR = {"best": "#2e7d32", "excellent": "#43a047", "good": "#7cb342", "forced": "#757575",
+CLASS_COLOR = {"book": "#8d6e63", "best": "#2e7d32", "excellent": "#43a047", "good": "#7cb342", "forced": "#757575",
                "inaccuracy": "#f9a825", "mistake": "#ef6c00", "blunder": "#c62828"}
 
 
@@ -32,6 +32,37 @@ def _pct(v):
     return "–" if v is None else f"{v:.0f} %"
 
 
+def _explorer_lines(ex: dict) -> list[str]:
+    lines = []
+    for db, label in (("lichess", "Lichess-pelaajat"), ("masters", "Mestaripelit")):
+        d = ex.get(db)
+        if not d or not d["games"]:
+            continue
+        top = ", ".join(f"{m['san']} {m['share']:.0f} %" for m in d["top_moves"][:4])
+        played = d.get("played")
+        tail = (f"; pelattu siirto: {played['share']:.0f} % peleistä, valkea voitti {played['white_pct']:.0f} %"
+                if played else "; pelattua siirtoa ei ole viiden suosituimman joukossa")
+        lines.append(f"{label} ({d['games']} peliä): {top}{tail}.")
+    return lines
+
+
+def _opening_md(r: dict) -> list[str]:
+    o = r.get("opening") or {}
+    if not o.get("name"):
+        return []
+    out = ["## Avaus", f"- **{o['eco']} {o['name']}** ([Lichess]({o['lichess_url']}))",
+           f"- Kirjasiirtoja: {o['book_plies']} plyä"]
+    d = o.get("deviation")
+    if d:
+        who = "valkea" if d["color"] == "white" else "musta"
+        alts = ", ".join(d["book_alternatives"][:6]) or "–"
+        out.append(f"- Kirjasta poistui {who}: {d['move_number']}.{'' if d['color'] == 'white' else '..'} "
+                   f"{d['san']} ({CLASS_FI[d['classification']]}). Kirjan jatkot: {alts}. Moottori: {d['engine_best']}.")
+    if o.get("explorer"):
+        out += [f"- {x}" for x in _explorer_lines(o["explorer"])]
+    return out + [""]
+
+
 def to_markdown(r: dict) -> str:
     g = r["game"]
     tc = g["time_control"]
@@ -42,6 +73,7 @@ def to_markdown(r: dict) -> str:
            f"- Avaus: {g.get('eco') or ''} {g.get('opening') or ''}".rstrip(),
            f"- Vaiheet: {', '.join(PHASE_FI[p] for p in g['phases_reached'])}",
            ""]
+    out += _opening_md(r)
     colors = [r["perspective"]] if r["perspective"] else ["white", "black"]
     for c in colors:
         p = r["players"][c]
@@ -63,10 +95,13 @@ def to_markdown(r: dict) -> str:
         for lp in p["learning_priorities"]:
             ev = ", ".join(str(e) for e in lp["evidence"])
             out.append(f"{lp['rank']}. **{lp['title']}**: {lp['practice']} (näyttö: plyt {ev})")
+            out += [f"   - [{x['title']}]({x['url']})" for x in lp.get("resources", [])]
         if p["skip_for_now"]:
             out += ["", "**Voit jättää toistaiseksi:**"] + [f"- {s}" for s in p["skip_for_now"]]
         out.append("")
-    out += ["## Rajoitteet"] + [f"- {l}" for l in r["limitations"]]
+    od = r.get("open_data", {})
+    out += ["## Rajoitteet"] + [f"- {l}" for l in r["limitations"]] + [f"- {n}" for n in od.get("notes", [])]
+    out.append(f"- Lähteet: {', '.join(od.get('sources', []))}")
     return "\n".join(out)
 
 
@@ -85,7 +120,7 @@ border-radius:99px;margin:4px 6px 0 0;font-size:13px}
 @media (max-width:640px){.km{grid-template-columns:1fr}.km svg{max-width:100%;height:auto}}
 .cls{font-weight:600}.big{font-size:28px;font-weight:700}
 .moves{display:flex;flex-wrap:wrap;gap:4px}.mv{padding:2px 7px;border-radius:5px;border:1px solid var(--line);font-size:13px}
-ol li{margin-bottom:6px}.muted{color:var(--muted);font-size:13px}
+ol li{margin-bottom:6px}a{color:#1565c0}@media (prefers-color-scheme:dark){a{color:#90caf9}}.muted{color:var(--muted);font-size:13px}
 """
 
 
@@ -104,6 +139,24 @@ def to_html(r: dict) -> str:
              f"<span>{g['length']['full_moves']} siirtoa = {e(g['length']['category_fi'])} peli</span>"
              f"<span>{e(str(g.get('eco') or ''))} {e(str(g.get('opening') or ''))}</span>"
              f"<span>Stockfish syvyys {r['engine']['depth']}</span></div>"]
+
+    # Opening
+    o = r.get("opening") or {}
+    if o.get("name"):
+        parts.append(f"<h2>Avaus</h2><div class='card'><div class='big' style='font-size:20px'>"
+                     f"{e(o['eco'] or '')} {e(o['name'])}</div>"
+                     f"<p>{o['book_plies']} kirjasiirtoa (plyä). "
+                     f"<a href='{e(o['lichess_url'])}' target='_blank' rel='noopener'>Avaussivu Lichessissä</a></p>")
+        d = o.get("deviation")
+        if d:
+            who = "Valkea" if d["color"] == "white" else "Musta"
+            alts = ", ".join(d["book_alternatives"][:6]) or "–"
+            parts.append(f"<p>{who} poistui kirjasta siirrolla <b>{d['move_number']}.{'' if d['color'] == 'white' else '..'}"
+                         f" {e(d['san'])}</b> ({e(CLASS_FI[d['classification']])}). Kirjan jatkot: {e(alts)}. "
+                         f"Moottorin paras: {e(str(d['engine_best']))}.</p>")
+        if o.get("explorer"):
+            parts += [f"<p class='muted'>{e(x)}</p>" for x in _explorer_lines(o["explorer"])]
+        parts.append("</div>")
 
     # Move strip
     parts.append("<h2>Siirrot</h2><div class='moves'>")
@@ -124,7 +177,11 @@ def to_html(r: dict) -> str:
                      f"<div class='cls' style='color:{col}'>{e(CLASS_FI[m['classification']])}"
                      f" · {e(PHASE_FI[m['phase']])}</div><p>{e(km['text'])}</p>"
                      f"<p class='muted'>Arvio ennen {e(m['eval_before'])}, jälkeen {e(m['eval_after'])}. "
-                     f"Vihreä nuoli = moottorin paras siirto.</p></div></div>")
+                     f"Vihreä nuoli = moottorin paras siirto. "
+                     f"<a href='{e(km['lichess_analysis_url'])}' target='_blank' rel='noopener'>Avaa asema Lichessissä</a></p>"
+                     + (f"<p class='muted'>Tablebase: {e(m['tablebase']['before_fi'])} → {e(m['tablebase']['after_fi'])}</p>"
+                        if m.get("tablebase") else "")
+                     + "</div></div>")
 
     colors = [r["perspective"]] if r["perspective"] else ["white", "black"]
     for c in colors:
@@ -158,12 +215,17 @@ def to_html(r: dict) -> str:
         parts.append("<h3>Mitä kannattaa opetella</h3><ol>")
         for lp in p["learning_priorities"]:
             parts.append(f"<li><b>{e(lp['title'])}</b>: {e(lp['practice'])} "
-                         f"<span class='muted'>(näyttö: plyt {', '.join(map(str, lp['evidence']))})</span></li>")
+                         f"<span class='muted'>(näyttö: plyt {', '.join(map(str, lp['evidence']))})</span>"
+                         + (("<br>" + " · ".join(f"<a href='{e(x['url'])}' target='_blank' rel='noopener'>{e(x['title'])}</a>"
+                                                  for x in lp.get("resources", []))) if lp.get("resources") else "")
+                         + "</li>")
         parts.append("</ol>")
         if p["skip_for_now"]:
             parts.append("<h3>Voit jättää toistaiseksi</h3><ul>"
                          + "".join(f"<li>{e(s)}</li>" for s in p["skip_for_now"]) + "</ul>")
 
-    parts.append("<h2>Rajoitteet</h2><ul>" + "".join(f"<li class='muted'>{e(l)}</li>" for l in r["limitations"]) + "</ul>")
+    od = r.get("open_data", {})
+    notes = r["limitations"] + od.get("notes", []) + [f"Lähteet: {', '.join(od.get('sources', []))}"]
+    parts.append("<h2>Rajoitteet ja lähteet</h2><ul>" + "".join(f"<li class='muted'>{e(l)}</li>" for l in notes) + "</ul>")
     parts.append("</main></body></html>")
     return "".join(parts)

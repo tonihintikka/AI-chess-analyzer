@@ -82,3 +82,57 @@ def test_renderers_and_json(report):
 def test_invalid_pgn():
     with pytest.raises(ValueError):
         build_report("not a pgn")
+
+
+# ----------------------------------------------------------------- open data
+
+from app.analyzer.openings import lichess_opening_url
+from app.analyzer import coach as coach_mod
+
+TRAP = (Path(__file__).parent / "games" / "stalemate_trap.pgn").read_text()
+
+
+def test_lichess_opening_url_normalises_names():
+    assert lichess_opening_url("Scandinavian Defense: Mieses-Kotrč Variation") == \
+        "https://lichess.org/opening/Scandinavian_Defense_Mieses-Kotrc_Variation"
+    assert lichess_opening_url("Anderssen's Opening") == "https://lichess.org/opening/Anderssens_Opening"
+
+
+@needs_engine
+def test_opening_book(report):
+    moves = report["moves"]
+    assert [m["classification"] for m in moves[:5]] == ["book"] * 5
+    assert not moves[5]["book"] and moves[5]["san"] == "Qe6+"
+    o = report["opening"]
+    assert o["eco"] == "B01" and "Scandinavian" in o["name"]
+    assert o["deviation"]["ply"] == 6 and "Qa5" in o["deviation"]["book_alternatives"]
+    # Book moves are excluded from accuracy and from error counts.
+    assert report["players"]["black"]["counts"]["book"] == 2
+
+
+class FakeOpenData:
+    token = None
+    notes: list = []
+
+    def __init__(self, token=None):
+        pass
+
+    def tablebase(self, fen):
+        if fen.startswith("8/8/8/8/8/3Q4/8/k1K5 w"):
+            return {"category": "win", "dtm": 1, "moves": [{"san": "Qb1#"}]}
+        return {"category": "draw", "dtm": None, "moves": []}
+
+    def save(self):
+        pass
+
+
+@needs_engine
+def test_tablebase_flags_thrown_win(monkeypatch):
+    monkeypatch.setattr(coach_mod, "OpenData", FakeOpenData)
+    r = build_report(TRAP, depth=10, online=True)
+    m = r["moves"][0]
+    assert "tb_threw_win" in m["tags"]
+    assert m["tablebase"]["after"] == "draw" and m["tablebase"]["best_san"] == "Qb1#"
+    assert r["opening"]["name"] is None  # non-standard start: no book
+    topics = [lp["topic"] for lp in r["players"]["white"]["learning_priorities"]]
+    assert "endgame_technique" in topics and "opening_principles" not in topics

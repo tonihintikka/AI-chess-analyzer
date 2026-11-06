@@ -19,6 +19,8 @@ def main(argv=None) -> int:
     ap.add_argument("--player", help="Käyttäjänimi, jonka näkökulmasta raportoidaan")
     ap.add_argument("--depth", type=int, default=14, help="Stockfish-syvyys (oletus 14)")
     ap.add_argument("--engine", help="Stockfishin polku (oletus: PATH tai STOCKFISH_PATH)")
+    ap.add_argument("--online", action="store_true",
+                    help="Hae Lichessin avointa dataa: tablebase (<=7 nappulaa) ja explorer (vaatii LICHESS_TOKEN)")
     ap.add_argument("--json", dest="json_out", help="Kirjoita JSON-raportti tiedostoon")
     ap.add_argument("--html", dest="html_out", help="Kirjoita HTML-raportti laudoilla tiedostoon")
     ap.add_argument("--md", action="store_true", help="Tulosta Markdown-yhteenveto stdoutiin")
@@ -26,7 +28,7 @@ def main(argv=None) -> int:
 
     text = sys.stdin.read() if a.pgn == "-" else Path(a.pgn).read_text(encoding="utf-8")
     try:
-        report = build_report(text, player=a.player, depth=a.depth, engine_path=a.engine)
+        report = build_report(text, player=a.player, depth=a.depth, engine_path=a.engine, online=a.online)
     except (ValueError, RuntimeError) as e:
         print(f"Virhe: {e}", file=sys.stderr)
         return 1

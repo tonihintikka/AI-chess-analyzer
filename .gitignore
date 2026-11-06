@@ -19,3 +19,5 @@ env/
 # Local
 .venv/
 backend/reports/
+backend/.cache/
+backend/.env.op

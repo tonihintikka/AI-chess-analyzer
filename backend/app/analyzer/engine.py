@@ -104,6 +104,9 @@ class PlyAnalysis:
     legal_moves: int
     clock_seconds: Optional[float] = None
     time_spent_seconds: Optional[float] = None
+    book: bool = False
+    opening_name: Optional[str] = None
+    tablebase: Optional[dict] = None
     tags: list[str] = field(default_factory=list)
     tag_details: dict = field(default_factory=dict)
 

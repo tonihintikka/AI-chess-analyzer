@@ -42,14 +42,14 @@ async def check_health():
         )
 
 @router.post("/engine-report")
-def engine_report(pgn_input: PGNInput, player: Optional[str] = None, depth: int = 14):
+def engine_report(pgn_input: PGNInput, player: Optional[str] = None, depth: int = 14, online: bool = False):
     """
     Deterministic Stockfish + rule-based report (no LLM). Same JSON as the CLI
     `python -m app.analyzer`. See ANALYZER.md for the schema.
     """
     from ..analyzer.coach import build_report
     try:
-        return build_report(pgn_input.pgn, player=player, depth=max(6, min(depth, 22)))
+        return build_report(pgn_input.pgn, player=player, depth=max(6, min(depth, 22)), online=online)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:

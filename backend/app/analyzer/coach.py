@@ -14,53 +14,63 @@ import chess
 import chess.pgn
 
 from .engine import PlyAnalysis, analyze_game
+from .openings import annotate_book
+from .opendata import OpenData, annotate_tablebase, explorer_summary
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 PHASES = ["opening", "middlegame", "endgame"]
 PHASE_FI = {"opening": "Avaus", "middlegame": "Keskipeli", "endgame": "Loppupeli"}
 CLASS_FI = {
-    "best": "paras", "excellent": "erinomainen", "good": "hyvä", "forced": "pakkosiirto",
+    "book": "kirjasiirto", "best": "paras", "excellent": "erinomainen", "good": "hyvä", "forced": "pakkosiirto",
     "inaccuracy": "epätarkkuus", "mistake": "virhe", "blunder": "vakava virhe",
 }
 ERROR_CLASSES = ("inaccuracy", "mistake", "blunder")
 
 TOPICS = {
     "blunder_check": {
+        "resources": [{"title": "Lichess: suojaamaton nappula", "url": "https://lichess.org/training/hangingPiece"}, {"title": "Lichess: puolustussiirto", "url": "https://lichess.org/training/defensiveMove"}],
         "title": "Tarkistus ennen siirtoa: shakit, lyönnit ja uhat",
         "practice": "Kysy ennen jokaista siirtoa: mitä vastustaja voi lyödä tai millä shakata, "
                     "jos teen tämän? Tee taktiikkatehtäviä 10 min/päivä teemalla 'hanging piece'.",
     },
     "mate_patterns": {
+        "resources": [{"title": "Lichess: matti 1 siirrossa", "url": "https://lichess.org/training/mateIn1"}, {"title": "Lichess: matti 2 siirrossa", "url": "https://lichess.org/training/mateIn2"}, {"title": "Lichess: kuningassivun hyökkäys", "url": "https://lichess.org/training/kingsideAttack"}],
         "title": "Mattikuviot ja kuninkaan turvallisuus",
         "practice": "Ratkaise 'matti 1–2 siirrossa' -tehtäviä (esim. Lichessin mateIn1/mateIn2-teemat). "
                     "Seuraa erityisesti avautuvia linjoja kuninkaan edessä (h- ja g-linja).",
     },
     "tactics_material": {
+        "resources": [{"title": "Lichess: haarukka", "url": "https://lichess.org/training/fork"}, {"title": "Lichess: kiinnitys", "url": "https://lichess.org/training/pin"}, {"title": "Lichess: suojaamaton nappula", "url": "https://lichess.org/training/hangingPiece"}],
         "title": "Taktiikka: vapaa materiaali, haarukka ja kiinnitys",
         "practice": "Etsi joka siirrolla suojaamattomat nappulat molemmilta puolilta. "
                     "Tehtäväteemat: hangingPiece, fork, pin.",
     },
     "punish_mistakes": {
+        "resources": [{"title": "Lichess: etu (advantage)", "url": "https://lichess.org/training/advantage"}, {"title": "Lichess: hiljainen siirto", "url": "https://lichess.org/training/quietMove"}],
         "title": "Vastustajan virheiden rankaiseminen",
         "practice": "Kun vastustaja tekee yllättävän siirron, pysähdy ja kysy: mitä se jätti "
                     "suojaamatta, ja mikä muuttui edellisestä siirrosta?",
     },
     "opening_principles": {
+        "resources": [{"title": "Lichess: avaustehtävät", "url": "https://lichess.org/training/opening"}, {"title": "Lichess Learn: perusteet", "url": "https://lichess.org/learn"}],
         "title": "Avausperiaatteet",
         "practice": "Kehitä ratsut ja lähetit, linnoita ajoissa ja vältä saman nappulan "
                     "toistuvia siirtoja. Opettele 1–2 avausta periaatteiden kautta, älä ulkoa.",
     },
     "middlegame_plans": {
+        "resources": [{"title": "Lichess: keskipelitehtävät", "url": "https://lichess.org/training/middlegame"}],
         "title": "Keskipelin suunnitelmat ja nappuloiden aktiivisuus",
         "practice": "Etsi asemasta heikoin nappulasi ja paranna sitä. Kun et keksi siirtoa, "
                     "kysy, mihin vastustaja on menossa.",
     },
     "endgame_technique": {
+        "resources": [{"title": "Lichess Practice: perusloppupelit", "url": "https://lichess.org/practice"}, {"title": "Lichess: loppupelitehtävät", "url": "https://lichess.org/training/endgame"}],
         "title": "Loppupelitekniikka",
         "practice": "Kuninkaan aktivointi, vapaasotilaat ja perusloppupelit "
                     "(K+T vs K, sotilasloppupelien oppositio).",
     },
     "time_management": {
+        "resources": [{"title": "Lichess Puzzle Storm (nopeusharjoitus)", "url": "https://lichess.org/storm"}],
         "title": "Ajankäyttö",
         "practice": "Käytä aikaa kriittisiin hetkiin (vaihdot, avautuva kuningas) ja pelaa "
                     "rutiinisiirrot nopeasti. Pidä aina varalla aikaa loppua varten.",
@@ -138,13 +148,17 @@ def tag_text(p: PlyAnalysis, tag: str) -> Optional[str]:
         return f"Vapaa {d['piece']} jäi lyömättä: {d['best']}."
     if tag == "missed_punishment":
         return f"Vastustajan virhe {d['opponent_move']} jäi rankaisematta, paras oli {d['best']}."
+    if tag in ("tb_threw_win", "tb_threw_draw"):
+        d = p.tag_details.get("tablebase", {})
+        return (f"Tablebase: asema oli {d['before_fi']}, siirron jälkeen {d['after_fi']}. "
+                f"Tarkka siirto oli {d['best_san']}.")
     if tag == "allowed_tactic":
         return f"Siirto salli vastustajalle shakkiin perustuvan iskun: {' '.join(d['line'])}."
     return None
 
 
 TACTICAL_TAGS = ("allowed_mate", "missed_mate", "lost_material", "missed_capture",
-                 "missed_punishment", "allowed_tactic")
+                 "missed_punishment", "allowed_tactic", "tb_threw_win", "tb_threw_draw")
 
 
 def describe_move(p: PlyAnalysis) -> str:
@@ -159,6 +173,7 @@ def describe_move(p: PlyAnalysis) -> str:
 
 
 def _accuracy(moves: list[PlyAnalysis]) -> Optional[float]:
+    moves = [m for m in moves if not m.book]
     if not moves:
         return None
     return round(sum(m.accuracy for m in moves) / len(moves), 1)
@@ -173,13 +188,13 @@ def _counts(moves: list[PlyAnalysis]) -> dict:
 
 def _opening_habits(color: str, mine: list[PlyAnalysis], all_plies: list[PlyAnalysis]) -> list[dict]:
     obs = []
-    queen = [m for m in mine if "queen_move_opening" in m.tags]
+    queen = [m for m in mine if "queen_move_opening" in m.tags and not m.book]
     if len(queen) >= 3:
         costly = [m for m in queen if m.win_loss >= 5]
         obs.append({
             "id": "queen_moves_early", "phase": "opening",
             "severity": "warning" if costly else "info",
-            "text": f"Kuningatar liikkui avausvaiheessa {len(queen)} kertaa. Jokainen ylimääräinen "
+            "text": f"Kuningatar liikkui avausvaiheessa kirjan jälkeen {len(queen)} kertaa. Jokainen ylimääräinen "
                     f"kuningatarsiirto on pois kehityksestä, ja vastustaja voi voittaa tempoja "
                     f"hyökkäämällä sitä vastaan."
                     + (f" Näistä {len(costly)} maksoi moottorin mukaan selvästi." if costly else ""),
@@ -310,6 +325,8 @@ def _learning_priorities(mine: list[PlyAnalysis], habits: list[dict], clock_obs:
             add("tactics_material", 2, m.ply); tagged = True
         if "missed_punishment" in m.tags:
             add("punish_mistakes", 3, m.ply); tagged = True
+        if "tb_threw_win" in m.tags or "tb_threw_draw" in m.tags:
+            add("endgame_technique", 4, m.ply); tagged = True
         if m.classification in ERROR_CLASSES and not tagged:
             topic = {"opening": "opening_principles", "middlegame": "middlegame_plans",
                      "endgame": "endgame_technique"}[m.phase]
@@ -332,6 +349,7 @@ def _learning_priorities(mine: list[PlyAnalysis], habits: list[dict], clock_obs:
     ranked = [t for t, s in score.most_common() if s > 0][:3]
     priorities = [{
         "rank": i + 1, "topic": t, "title": TOPICS[t]["title"], "practice": TOPICS[t]["practice"],
+        "resources": TOPICS[t]["resources"],
         "score": round(score[t], 1), "evidence": sorted(evidence[t]),
     } for i, t in enumerate(ranked)]
 
@@ -343,7 +361,8 @@ def _learning_priorities(mine: list[PlyAnalysis], habits: list[dict], clock_obs:
     return priorities, skip
 
 
-def _player_report(color: str, plies: list[PlyAnalysis], headers, tc: dict, length: dict) -> dict:
+def _player_report(color: str, plies: list[PlyAnalysis], headers, tc: dict, length: dict,
+                   opening: Optional[dict] = None) -> dict:
     mine = [p for p in plies if p.color == color]
     elo = _int(headers.get("WhiteElo" if color == "white" else "BlackElo"))
     phases = {}
@@ -364,8 +383,23 @@ def _player_report(color: str, plies: list[PlyAnalysis], headers, tc: dict, leng
                               (m.ply > 1 and plies[m.ply - 2].classification in ("mistake", "blunder")))],
         }
     habits = _opening_habits(color, mine, plies)
+    dev = (opening or {}).get("deviation")
+    if dev and dev["color"] == color:
+        alts = ", ".join(dev["book_alternatives"][:6]) or "–"
+        cls = dev["classification"]
+        ok = cls not in ERROR_CLASSES
+        habits.insert(0, {
+            "id": "left_book", "phase": "opening", "severity": "info" if ok else "warning",
+            "text": f"Poistuit avauskirjasta siirrolla {dev['move_number']}.{'' if color == 'white' else '..'} "
+                    f"{dev['san']} ({CLASS_FI[cls]}). Kirjan jatkot: {alts}. Moottorin paras: {dev['engine_best']}.",
+            "evidence": [dev["ply"]],
+        })
     clock_obs = _clock_observations(mine, tc)
     priorities, skip = _learning_priorities(mine, habits, clock_obs, elo)
+    if opening and opening.get("lichess_url"):
+        for lp in priorities:
+            if lp["topic"] == "opening_principles":
+                lp["resources"] = [{"title": f"Lichess: {opening['name']}", "url": opening["lichess_url"]}] + lp["resources"]
     has_clock = any(p.clock_seconds is not None for p in plies)
     return {
         "color": color,
@@ -395,7 +429,9 @@ def _key_moments(plies: list[PlyAnalysis], limit: int = 6) -> list[dict]:
             picks.append((p, reason))
     picks.sort(key=lambda x: (x[1] != "mate", -x[0].win_loss))
     chosen = sorted(picks[:limit], key=lambda x: x[0].ply)
-    return [{"ply": p.ply, "reason": r, "color": p.color, "text": describe_move(p) if r == "error"
+    return [{"ply": p.ply, "reason": r, "color": p.color,
+             "lichess_analysis_url": "https://lichess.org/analysis/standard/" + p.fen_before.replace(" ", "_"),
+             "text": describe_move(p) if r == "error"
              else (f"{move_label(p)} – matti." if r == "mate"
                    else f"{move_label(p)} – vastustajan vakava virhe rangaistiin.")}
             for p, r in chosen]
@@ -404,7 +440,8 @@ def _key_moments(plies: list[PlyAnalysis], limit: int = 6) -> list[dict]:
 # --------------------------------------------------------------------------- entry point
 
 def build_report(pgn_text: str, player: Optional[str] = None, depth: int = 14,
-                 engine_path: Optional[str] = None) -> dict:
+                 engine_path: Optional[str] = None, online: bool = False,
+                 lichess_token: Optional[str] = None) -> dict:
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if game is not None and game.errors:
         raise ValueError(f"PGN-virhe: {game.errors[0]}")
@@ -416,6 +453,11 @@ def build_report(pgn_text: str, player: Optional[str] = None, depth: int = 14,
     tc["category_fi"] = TC_FI[tc["category"]]
     length = game_length(len(plies))
 
+    opening = annotate_book(plies)
+    for p in plies:
+        if p.book:
+            p.classification, p.nag, p.accuracy = "book", None, 100.0
+
     perspective = None
     if player:
         if h.get("White", "").lower() == player.lower():
@@ -423,10 +465,35 @@ def build_report(pgn_text: str, player: Optional[str] = None, depth: int = 14,
         elif h.get("Black", "").lower() == player.lower():
             perspective = "black"
 
+    open_data = {"online": online, "sources": [opening["source"]], "notes": []}
+    if online:
+        od = OpenData(token=lichess_token)
+        n = annotate_tablebase(plies, od)
+        if n:
+            open_data["sources"].append("Lichess Syzygy tablebase")
+        dev = opening.get("deviation")
+        if dev:
+            fen = plies[dev["ply"] - 1].fen_before
+            elo_color = perspective or dev["color"]
+            elo = _int(h.get("WhiteElo" if elo_color == "white" else "BlackElo"))
+            speed = tc["category"] if tc["category"] in ("bullet", "blitz", "rapid", "classical") else None
+            if od.token:
+                opening["explorer"] = {
+                    "position_ply": dev["ply"],
+                    "filters": {"speed": speed, "rating_from": elo},
+                    "lichess": explorer_summary(od.explorer(fen, "lichess", speed, elo), dev["san"]),
+                    "masters": explorer_summary(od.explorer(fen, "masters"), dev["san"]),
+                }
+                open_data["sources"].append("Lichess opening explorer")
+            else:
+                od.notes.append("Opening explorer ohitettiin, koska LICHESS_TOKEN puuttuu.")
+        od.save()
+        open_data["notes"] = od.notes
+
     phases_reached = [ph for ph in PHASES if any(p.phase == ph for p in plies)]
     limitations = [
-        f"Stockfish syvyydellä {depth}. Avauskirjaa ei käytetä, joten teoreettisesti hyväksyttyjä "
-        f"avaussiirtoja voidaan merkitä epätarkkuuksiksi.",
+        f"Stockfish syvyydellä {depth}. Avauskirjana on Lichessin nimettyjen avausten tietokanta: se ei ole "
+        f"täysi teoriapuu, joten poistuminen kirjasta ei tarkoita, että siirto olisi huono.",
         "Pelivaiheet on päätelty heuristisesti materiaalin ja kehityksen perusteella.",
         "Tarkkuus on siirtokohtaisten tarkkuuksien keskiarvo (ei Lichessin painotettua kaavaa), "
         "joten se ei ole suoraan verrattavissa chess.comin lukuun.",
@@ -443,15 +510,19 @@ def build_report(pgn_text: str, player: Optional[str] = None, depth: int = 14,
             "white_elo": _int(h.get("WhiteElo")), "black_elo": _int(h.get("BlackElo")),
             "result": h.get("Result"), "termination": h.get("Termination"),
             "date": h.get("Date"), "eco": h.get("ECO"),
-            "opening": h.get("Opening") or (h.get("ECOUrl", "").rsplit("/", 1)[-1].replace("-", " ") or None),
+            "opening": opening["name"] or h.get("Opening")
+                       or (h.get("ECOUrl", "").rsplit("/", 1)[-1].replace("-", " ") or None),
+            "eco_book": opening["eco"],
             "link": h.get("Link"),
             "time_control": tc, "length": length, "phases_reached": phases_reached,
             "has_clock_data": any(p.clock_seconds is not None for p in plies),
             "final_fen": plies[-1].fen_after,
         },
         "engine": {"name": "Stockfish", "depth": depth},
+        "opening": opening,
+        "open_data": open_data,
         "perspective": perspective,
-        "players": {c: _player_report(c, plies, h, tc, length) for c in ("white", "black")},
+        "players": {c: _player_report(c, plies, h, tc, length, opening) for c in ("white", "black")},
         "key_moments": _key_moments(plies),
         "moves": [p.to_dict() for p in plies],
         "limitations": limitations,
