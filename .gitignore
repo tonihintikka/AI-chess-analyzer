@@ -16,3 +16,8 @@ env/
 
 # Misc
 .DS_Store 
+# Local
+.venv/
+backend/reports/
+backend/.cache/
+backend/.env.op
