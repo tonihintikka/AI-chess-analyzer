@@ -1,0 +1,14 @@
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2026.11.06"]
+[White "mahoormo"]
+[Black "tonhin"]
+[Result "0-1"]
+[ECO "B01"]
+[WhiteElo "282"]
+[BlackElo "301"]
+[TimeControl "180+2"]
+[Termination "Toni Hintikka won by checkmate"]
+
+1. e4 d5 2. exd5 Qxd5 3. Nc3 Qe6+ 4. Be2 Nc6 5. Nf3 Bd7 6. O-O O-O-O 7. Ng5
+Qf5 8. d3 h6 9. d4 hxg5 10. d5 Qe5 11. dxc6 Qxh2# 0-1

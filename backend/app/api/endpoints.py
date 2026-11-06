@@ -41,6 +41,20 @@ async def check_health():
             message=f"Service health check failed: {str(e)}"
         )
 
+@router.post("/engine-report")
+def engine_report(pgn_input: PGNInput, player: Optional[str] = None, depth: int = 14):
+    """
+    Deterministic Stockfish + rule-based report (no LLM). Same JSON as the CLI
+    `python -m app.analyzer`. See ANALYZER.md for the schema.
+    """
+    from ..analyzer.coach import build_report
+    try:
+        return build_report(pgn_input.pgn, player=player, depth=max(6, min(depth, 22)))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
 @router.post("/analyze", response_model=GameAnalysis)
 async def analyze_game(pgn_input: PGNInput):
     """
